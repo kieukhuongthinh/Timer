@@ -12,14 +12,26 @@ import java.awt.SystemTray;
 
 import java.awt.TrayIcon;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.logging.Level;
@@ -35,7 +47,11 @@ import javax.swing.Timer;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 import javax.swing.JDialog;
+import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.filechooser.FileFilter;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /*
  * To change this license header, choose License Headers in Project Properties.
@@ -52,116 +68,23 @@ public class timer extends JFrame {
         initUI();
     }
 
-    Timer t = null;
-    TrayIcon icon;
-    JOptionPane optionPane = new JOptionPane("Hết thời gian rồi nhé. Thư giãn đi nhé. Sleep?");
-    JDialog dialog = optionPane.createDialog("Hết thời gian");
-
     private void initUI() {
-
-        BufferedImage image16x16 = null;
-        List<Image> icons = new ArrayList<>();
-        try {
-            //src/logout_...
-            image16x16 = ImageIO.read(getClass().getResource("/logout_16x16.png"));
-            icons.add(image16x16);
-            icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_24x24.png")));
-            icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_32x32.png")));
-            icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_64x64.png")));
-        } catch (IOException ex) {
-            Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        setIconImages(icons);
-        if (SystemTray.isSupported()) {
-            icon = new TrayIcon(image16x16);
-            icon.setToolTip("Nhắc nhỡ");
-            icon.addActionListener((ActionEvent e) -> {
-                setVisible(true);
-                setExtendedState(NORMAL);
-                SystemTray.getSystemTray().remove(icon);
-            });
-            addWindowListener(new WindowAdapter() {
-
-                @Override
-                public void windowIconified(WindowEvent e) {
-                    setVisible(false);
-                    try {
-                        SystemTray.getSystemTray().add(icon);
-                    } catch (AWTException e1) {
-                    }
-                }
-
-            });
-        }
-
-        JTextField inputfld = new JTextField("(s)");
-        JButton startbtn = new JButton("START");
-        JLabel statusbar = new JLabel("Start");
-
-        inputfld.addActionListener((ActionEvent e) -> {
-            startbtn.doClick();
-        });
-
-        inputfld.setAlignmentY(CENTER_ALIGNMENT);
-
-        startbtn.addActionListener((ActionEvent e) -> {
-            ScriptEngineManager mgr = new ScriptEngineManager();
-            ScriptEngine engine = mgr.getEngineByName("JavaScript");
-            String input = inputfld.getText();
-            int after = 0;
-            try {
-                after = (int) Float.parseFloat(engine.eval(input).toString());
-            } catch (ScriptException ex) {
-                JOptionPane.showMessageDialog(new JFrame(), "Input lỗi" + ex, "Thông báo", JOptionPane.ERROR_MESSAGE);
-            }
-
-            if (after > 0) {
-                if (t != null) {
-                    t.stop();
-                }
-                Date now = new Date();
-                statusbar.setText(now.toString());
-                replay(after);
-
-            }
-        });
-        startbtn.setAlignmentX(CENTER_ALIGNMENT);
-
-        inputfld.setPreferredSize(new Dimension(200, 30));
-        startbtn.setPreferredSize(new Dimension(200, 50));
-        statusbar.setPreferredSize(new Dimension(200, 20));
-
-        setLayout(new BorderLayout(0, 0));
-        add(inputfld, BorderLayout.NORTH);
-        add(startbtn, BorderLayout.CENTER);
-        add(statusbar, BorderLayout.SOUTH);
+        createIconTray();
+        createGraphicForm();
 
         pack();
-
-        dialog.setAlwaysOnTop(true);
 
         setTitle("Nhắc nhỡ");
         setResizable(false);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setAlwaysOnTop(true);
-    }
 
-    private void replay(int after) {
-        t = new Timer(after * 1000, (ActionEvent e) -> {
-            dialog.setVisible(true);
-            t.stop();
-            if (null == optionPane.getValue()) {
-            } else if (((Integer) optionPane.getValue()) == JOptionPane.OK_OPTION) {
-                try {
-                    Runtime.getRuntime().exec("rundll32.exe powrprof.dll,SetSuspendState 0,1,0");
-                    //Hibernate must be turned off
-                } catch (IOException ex) {
-                    Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
-                }
-            } else {}
-        });
-        t.start();
+        setUpNotifyDialog("Hết thời gian rồi nhé. Thư giãn đi nhé. Sleep?", "Hết thời gian");
+        
+        String timeLog = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
+        file = new File(timeLog + ".txt");
+        _log = new StringBuilder();
     }
 
     public static void main(String... args) {
@@ -170,4 +93,198 @@ public class timer extends JFrame {
             t.setVisible(true);
         });
     }
+
+    private void createIconTray() {
+        _icons = new ArrayList<>();
+        
+        try {
+            //src/logout_...
+            _image16x16 = ImageIO.read(getClass().getResource("/logout_16x16.png"));
+            _icons.add(_image16x16);
+            _icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_24x24.png")));
+            _icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_32x32.png")));
+            _icons.add(ImageIO.read(getClass().getResourceAsStream("/logout_64x64.png")));
+        } catch (IOException ex) {
+            Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        setIconImages(_icons);
+        if (SystemTray.isSupported()) {
+            _icon = new TrayIcon(_image16x16);
+            _icon.setToolTip("Nhắc nhỡ");
+            _icon.addActionListener((ActionEvent e) -> {
+                setVisible(true);
+                setExtendedState(NORMAL);
+                SystemTray.getSystemTray().remove(_icon);
+            });
+            addWindowListener(new WindowAdapter() {
+
+                @Override
+                public void windowIconified(WindowEvent e) {
+                    setVisible(false);
+                    try {
+                        SystemTray.getSystemTray().add(_icon);
+                    } catch (AWTException e1) {
+                    }
+                }
+
+            });
+        }
+    }
+
+    private void createGraphicForm() {
+
+        _inputfld = new JTextField("(s)");
+        _descriptionfld = new JTextField("...");
+        _startbtn = new JButton("START");
+        _statusbar = new JLabel("Start");
+
+        //--------------
+        _inputfld.addActionListener((ActionEvent e) -> {
+            _startbtn.doClick();
+        });
+        _inputfld.addFocusListener(new FocusListener() {
+            @Override
+            public void focusLost(final FocusEvent pE) {
+                if (_inputfld.getText().compareTo("") == 0)
+                    _inputfld.setText("(s)");
+            }
+            @Override
+            public void focusGained(final FocusEvent pE) {
+                if (_inputfld.getText().compareTo("(s)") == 0)
+                    _inputfld.setText("");
+            }
+        });
+        
+        _inputfld.setAlignmentY(CENTER_ALIGNMENT);
+        //--------------
+
+        //--------------
+        _descriptionfld.addFocusListener(new FocusListener() {
+            @Override
+            public void focusLost(final FocusEvent pE) {
+                if (_descriptionfld.getText().compareTo("") == 0)
+                    _descriptionfld.setText("...");
+            }
+            @Override
+            public void focusGained(final FocusEvent pE) {
+                if (_descriptionfld.getText().compareTo("...") == 0)
+                    _descriptionfld.setText("");
+            }
+        });
+        //--------------
+        
+        //--------------
+        _startbtn.addActionListener((ActionEvent e) -> {
+            ScriptEngineManager mgr = new ScriptEngineManager();
+            ScriptEngine engine = mgr.getEngineByName("JavaScript");
+            String input = _inputfld.getText();
+            int after = 0;
+            try {
+                after = (int) Float.parseFloat(engine.eval(input).toString());
+            } catch (ScriptException ex) {
+                JOptionPane.showMessageDialog(new JFrame(), "Input lỗi" + ex, "Thông báo", JOptionPane.ERROR_MESSAGE);
+            }
+
+            if (after > 0) {
+                if (_replayTimer != null) {
+                    _replayTimer.stop();
+                }
+                Date now = new Date();
+                _statusbar.setText(now.toString());
+                _log.append(now.toString()).append(": ").append(_descriptionfld.getText()).append(System.lineSeparator());
+                savelog();
+                replay(after);
+
+            }
+        });
+        _startbtn.setAlignmentX(CENTER_ALIGNMENT);
+        //--------------
+
+        //--------------
+        _inputfld.setPreferredSize(new Dimension(200, 30));
+        _descriptionfld.setPreferredSize(new Dimension(200, 30));
+        _startbtn.setPreferredSize(new Dimension(200, 50));
+        _statusbar.setPreferredSize(new Dimension(200, 20));
+        //--------------
+
+        JPanel fld = new JPanel(new BorderLayout(0, 0));
+        fld.add(_inputfld, BorderLayout.NORTH);
+        fld.add(_descriptionfld, BorderLayout.SOUTH);
+
+        setLayout(new BorderLayout(0, 0));
+        add(fld, BorderLayout.NORTH);
+        add(_startbtn, BorderLayout.CENTER);
+        add(_statusbar, BorderLayout.SOUTH);
+    }
+
+    private void setUpNotifyDialog(String message, String title) {
+        _optionPane = new JOptionPane(message);
+        _dialog = _optionPane.createDialog(title);
+        _dialog.setAlwaysOnTop(true);
+        _dialog.setLocationRelativeTo(null);
+    }
+
+    private void replay(int after) {
+
+        Timer resizeTimer = new Timer(8 * 1000, (ActionEvent e2) -> {
+            _dialog.setPreferredSize(new Dimension(_dialog.getWidth() + 50, _dialog.getHeight() + 50));
+            //System.out.println(dialog.getWidth() + " : " + dialog.getHeight());
+            _dialog.pack();
+            _dialog.setLocationRelativeTo(null);
+        });
+
+        _replayTimer = new Timer(after * 1000, (ActionEvent e) -> {
+            _dialog.setPreferredSize(new Dimension(228, 68));
+            resizeTimer.start(); //Increase size of diglog automatic
+            _dialog.setVisible(true);
+            if (null == _optionPane.getValue()) {
+            } else if (((Integer) _optionPane.getValue()) == JOptionPane.OK_OPTION) {
+                try {
+                    Runtime.getRuntime().exec("rundll32.exe powrprof.dll,SetSuspendState 0,1,0");
+                    //Hibernate must be turned off
+                } catch (IOException ex) {
+                    Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
+                }
+            } else {
+            }
+            resizeTimer.stop();
+
+        });
+
+        _replayTimer.start();
+        _replayTimer.setRepeats(false);
+    }
+
+    private void savelog() {
+        String output = _log.toString();
+        BufferedWriter writer = null;
+        try {
+            writer = new BufferedWriter(new FileWriter(file));
+            writer.write(output);
+        } catch (IOException ex) {
+            Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
+        } finally {
+            try {
+                // Close the writer regardless of what happens...
+                writer.close();
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    private Timer _replayTimer = null;
+    private JOptionPane _optionPane;
+    private JDialog _dialog;
+
+    private BufferedImage _image16x16 = null;
+    private List<Image> _icons;
+    private TrayIcon _icon;
+
+    private JTextField _inputfld;
+    private JTextField _descriptionfld;
+    private JButton _startbtn;
+    private JLabel _statusbar;
+
+    private StringBuilder _log;
+    private File file;
 }
