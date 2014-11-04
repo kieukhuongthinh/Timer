@@ -21,9 +21,11 @@ import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
@@ -81,10 +83,21 @@ public class timer extends JFrame {
         setAlwaysOnTop(true);
 
         setUpNotifyDialog("Hết thời gian rồi nhé. Thư giãn đi nhé. Sleep?", "Hết thời gian");
-        
+
         String timeLog = new SimpleDateFormat("yyyyMMdd_HHmmss").format(Calendar.getInstance().getTime());
-        file = new File(timeLog + ".txt");
+        file = new File("log\\" + timeLog + ".txt");
+        file.getParentFile().mkdirs();
         _log = new StringBuilder();
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
+                Date now = new Date();
+                _statusbar.setText(now.toString());
+                _log.append("END TASK").append(System.lineSeparator()).append(now.toString()).append(": ").append(_descriptionfld.getText());
+                savelog();
+            }
+        });
     }
 
     public static void main(String... args) {
@@ -96,7 +109,7 @@ public class timer extends JFrame {
 
     private void createIconTray() {
         _icons = new ArrayList<>();
-        
+
         try {
             //src/logout_...
             _image16x16 = ImageIO.read(getClass().getResource("/logout_16x16.png"));
@@ -145,34 +158,47 @@ public class timer extends JFrame {
         _inputfld.addFocusListener(new FocusListener() {
             @Override
             public void focusLost(final FocusEvent pE) {
-                if (_inputfld.getText().compareTo("") == 0)
+                if (_inputfld.getText().compareTo("") == 0) {
                     _inputfld.setText("(s)");
+                }
             }
+
             @Override
             public void focusGained(final FocusEvent pE) {
-                if (_inputfld.getText().compareTo("(s)") == 0)
+                if (_inputfld.getText().compareTo("(s)") == 0) {
                     _inputfld.setText("");
+                }
             }
         });
-        
+
         _inputfld.setAlignmentY(CENTER_ALIGNMENT);
         //--------------
 
         //--------------
+        _descriptionfld.addActionListener(new ActionListener() {
+
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                _startbtn.doClick();
+            }
+        });
         _descriptionfld.addFocusListener(new FocusListener() {
             @Override
             public void focusLost(final FocusEvent pE) {
-                if (_descriptionfld.getText().compareTo("") == 0)
+                if (_descriptionfld.getText().compareTo("") == 0) {
                     _descriptionfld.setText("...");
+                }
             }
+
             @Override
             public void focusGained(final FocusEvent pE) {
-                if (_descriptionfld.getText().compareTo("...") == 0)
+                if (_descriptionfld.getText().compareTo("...") == 0) {
                     _descriptionfld.setText("");
+                }
             }
         });
         //--------------
-        
+
         //--------------
         _startbtn.addActionListener((ActionEvent e) -> {
             ScriptEngineManager mgr = new ScriptEngineManager();
@@ -182,7 +208,7 @@ public class timer extends JFrame {
             try {
                 after = (int) Float.parseFloat(engine.eval(input).toString());
             } catch (ScriptException ex) {
-                JOptionPane.showMessageDialog(new JFrame(), "Input lỗi" + ex, "Thông báo", JOptionPane.ERROR_MESSAGE);
+                JOptionPane.showMessageDialog(new JFrame(), "Input lỗi:\n" + ex, "Thông báo", JOptionPane.ERROR_MESSAGE);
             }
 
             if (after > 0) {
@@ -194,7 +220,6 @@ public class timer extends JFrame {
                 _log.append(now.toString()).append(": ").append(_descriptionfld.getText()).append(System.lineSeparator());
                 savelog();
                 replay(after);
-
             }
         });
         _startbtn.setAlignmentX(CENTER_ALIGNMENT);
@@ -220,8 +245,6 @@ public class timer extends JFrame {
     private void setUpNotifyDialog(String message, String title) {
         _optionPane = new JOptionPane(message);
         _dialog = _optionPane.createDialog(title);
-        _dialog.setAlwaysOnTop(true);
-        _dialog.setLocationRelativeTo(null);
     }
 
     private void replay(int after) {
@@ -229,12 +252,17 @@ public class timer extends JFrame {
         Timer resizeTimer = new Timer(8 * 1000, (ActionEvent e2) -> {
             _dialog.setPreferredSize(new Dimension(_dialog.getWidth() + 50, _dialog.getHeight() + 50));
             //System.out.println(dialog.getWidth() + " : " + dialog.getHeight());
-            _dialog.pack();
             _dialog.setLocationRelativeTo(null);
+            _dialog.setAlwaysOnTop(true);
+            _dialog.pack();
         });
 
         _replayTimer = new Timer(after * 1000, (ActionEvent e) -> {
-            _dialog.setPreferredSize(new Dimension(228, 68));
+            _dialog.setPreferredSize(new Dimension(278, 118));
+            _dialog.setLocationRelativeTo(null);
+            _dialog.setAlwaysOnTop(true);
+            _dialog.pack();
+            
             resizeTimer.start(); //Increase size of diglog automatic
             _dialog.setVisible(true);
             if (null == _optionPane.getValue()) {
@@ -257,9 +285,10 @@ public class timer extends JFrame {
 
     private void savelog() {
         String output = _log.toString();
-        BufferedWriter writer = null;
+        //OutputStreamWriter & FileOutputStream => UTF-8
+        OutputStreamWriter writer = null;
         try {
-            writer = new BufferedWriter(new FileWriter(file));
+            writer = new OutputStreamWriter(new FileOutputStream(file), "UTF-8");
             writer.write(output);
         } catch (IOException ex) {
             Logger.getLogger(timer.class.getName()).log(Level.SEVERE, null, ex);
